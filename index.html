@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #333;
+            font-family: 'Arial', sans-serif;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .loading-progress-bar {
+            height: 100%;
+            background: #333;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .name-text {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+            font-size: 48px;
+            font-weight: 600;
+            background: linear-gradient(90deg, #ffffff 0%, #e6e6e6 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+                text-align: center;
+            z-index: 1000;
+            text-shadow: none;
+            letter-spacing: -0.5px;
+        }
+
+        .title-text {
+            position: fixed;
+            top: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+            font-size: 24px;
+            font-weight: 400;
+            background: linear-gradient(90deg, #ffffff 0%, #e6e6e6 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-align: center;
+            z-index: 1000;
+            text-shadow: none;
+            letter-spacing: -0.3px;
+                opacity: 0.8;
+            }
+    </style>
+</head>
+<body>
+    <div class="name-text">Atara Weinreb</div>
+    <div class="title-text">Designer / Prototyper / Engineer</div>
+    <div class="loading">
+        <div>Loading models...</div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar"></div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+    <script>
+        // Basic scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            powerPreference: "high-performance"
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Add orbit controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // Add smooth damping
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;
+        controls.minDistance = 2;
+        controls.maxDistance = 10;
+        controls.maxPolarAngle = Math.PI / 2; // Prevent going below the ground
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -10;
+        directionalLight.shadow.camera.right = 10;
+        directionalLight.shadow.camera.top = 10;
+        directionalLight.shadow.camera.bottom = -10;
+        scene.add(directionalLight);
+
+        // Add a second light for better illumination
+        const secondaryLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        secondaryLight.position.set(-5, 3, -5);
+        scene.add(secondaryLight);
+
+        // Ground plane
+        const groundGeometry = new THREE.PlaneGeometry(10, 10);
+        
+        // Create wood texture
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const context = canvas.getContext('2d');
+        
+        // Base wood color (lighter oak)
+        context.fillStyle = '#D2B48C'; // Tan
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Add subtle wood grain
+        context.strokeStyle = '#B8860B'; // Dark Goldenrod
+        context.lineWidth = 1;
+        
+        // Draw parallel grain lines
+        for (let i = 0; i < 30; i++) {
+            const y = (i / 30) * canvas.height;
+            const variation = Math.random() * 20 - 10;
+            
+            context.beginPath();
+            context.moveTo(0, y + variation);
+            
+            // Create wavy grain pattern
+            for (let x = 0; x < canvas.width; x += 10) {
+                const wave = Math.sin(x * 0.02) * 5;
+                context.lineTo(x, y + variation + wave);
+            }
+            
+            context.stroke();
+        }
+        
+        // Add subtle highlights
+        context.strokeStyle = '#F5DEB3'; // Wheat
+        context.lineWidth = 0.5;
+        
+        for (let i = 0; i < 15; i++) {
+            const y = (i / 15) * canvas.height;
+            const variation = Math.random() * 20 - 10;
+            
+            context.beginPath();
+            context.moveTo(0, y + variation);
+            
+            for (let x = 0; x < canvas.width; x += 10) {
+                const wave = Math.sin(x * 0.02) * 3;
+                context.lineTo(x, y + variation + wave);
+            }
+            
+            context.stroke();
+        }
+        
+        const groundTexture = new THREE.CanvasTexture(canvas);
+        groundTexture.wrapS = THREE.RepeatWrapping;
+        groundTexture.wrapT = THREE.RepeatWrapping;
+        groundTexture.repeat.set(3, 3); // Repeat the pattern 3 times
+        
+        const groundMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xD2B48C,
+            side: THREE.DoubleSide,
+            shininess: 15,
+            map: groundTexture
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.5;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Create desk materials
+        const deskMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x8B4513, // Brown wood color
+            shininess: 30
+        });
+
+        // Create materials for desk items
+        const blackMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x111111,
+            shininess: 50
+        });
+
+        const whiteMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xffffff,
+            shininess: 30
+        });
+
+        const silverMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xcccccc,
+            shininess: 80
+        });
+
+        const blueMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x1a75ff,
+            shininess: 40
+        });
+
+        // Desk surface
+        const deskTopGeometry = new THREE.BoxGeometry(4, 0.1, 2);
+        const deskTop = new THREE.Mesh(deskTopGeometry, deskMaterial);
+        deskTop.position.set(0, 0.7, 0);
+        deskTop.receiveShadow = true;
+        deskTop.castShadow = true;
+        scene.add(deskTop);
+
+        // Desk legs
+        const legGeometry = new THREE.BoxGeometry(0.1, 1.4, 0.1);
+        const legPositions = [
+            [-1.9, 0, -0.9],  // Front left
+            [1.9, 0, -0.9],   // Front right
+            [-1.9, 0, 0.9],   // Back left
+            [1.9, 0, 0.9]     // Back right
+        ];
+
+        legPositions.forEach(position => {
+            const leg = new THREE.Mesh(legGeometry, deskMaterial);
+            leg.position.set(...position);
+            leg.receiveShadow = true;
+            leg.castShadow = true;
+            scene.add(leg);
+        });
+
+        // Books
+        const bookColors = [
+            { cover: 0x8B4513, spine: 0x6B3E0E }, // Brown book
+            { cover: 0x2F4F4F, spine: 0x1F3F3F }, // Dark slate book
+            { cover: 0x556B2F, spine: 0x455B1F }, // Dark olive book
+            { cover: 0x800000, spine: 0x600000 }  // Maroon book
+        ];
+        const bookPositions = [
+            [1.5, 0.76, -0.2],
+            [1.5, 0.80, -0.2],
+            [1.5, 0.84, -0.2],
+            [1.5, 0.88, -0.2]
+        ];
+
+        bookPositions.forEach((position, index) => {
+            // Book cover (main body)
+            const bookGeometry = new THREE.BoxGeometry(0.4, 0.04, 0.5);
+            const bookMaterial = new THREE.MeshPhongMaterial({ 
+                color: bookColors[index].cover,
+                shininess: 20
+            });
+            const book = new THREE.Mesh(bookGeometry, bookMaterial);
+            book.position.set(...position);
+            book.rotation.y = Math.PI / 8; // Slight angle
+            book.castShadow = true;
+            book.receiveShadow = true;
+            scene.add(book);
+
+            // Book spine
+            const spineGeometry = new THREE.BoxGeometry(0.02, 0.04, 0.5);
+            const spineMaterial = new THREE.MeshPhongMaterial({ 
+                color: bookColors[index].spine,
+                shininess: 10
+            });
+            const spine = new THREE.Mesh(spineGeometry, spineMaterial);
+            spine.position.set(
+                position[0] - 0.19 * Math.cos(Math.PI / 8),
+                position[1],
+                position[2] - 0.19 * Math.sin(Math.PI / 8)
+            );
+            spine.rotation.y = Math.PI / 8;
+            spine.castShadow = true;
+            spine.receiveShadow = true;
+            scene.add(spine);
+
+            // Book pages
+            const pagesGeometry = new THREE.BoxGeometry(0.38, 0.03, 0.48);
+            const pagesMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xF5F5F5,
+                shininess: 5
+            });
+            const pages = new THREE.Mesh(pagesGeometry, pagesMaterial);
+            pages.position.set(
+                position[0] + 0.01 * Math.cos(Math.PI / 8),
+                position[1],
+                position[2] + 0.01 * Math.sin(Math.PI / 8)
+            );
+            pages.rotation.y = Math.PI / 8;
+            pages.castShadow = true;
+            pages.receiveShadow = true;
+            scene.add(pages);
+
+            // Add some random variation to make them look more natural
+            const randomRotation = (Math.random() - 0.5) * 0.1;
+            book.rotation.y += randomRotation;
+            spine.rotation.y += randomRotation;
+            pages.rotation.y += randomRotation;
+        });
+
+        // Camera position
+        camera.position.set(0, 3, 5);
+        camera.lookAt(0, 0.7, 0);
+
+        // Loading state
+        let totalModels = 2; // Monitor and plant
+        let loadedModels = 0;
+        const loadingBar = document.querySelector('.loading-progress-bar');
+
+        function updateLoadingProgress() {
+            loadedModels++;
+            const percent = (loadedModels / totalModels) * 100;
+            loadingBar.style.width = percent + '%';
+            console.log(`Loading progress: ${percent.toFixed(0)}% (${loadedModels}/${totalModels} models)`);
+            
+            if (loadedModels === totalModels) {
+                document.querySelector('.loading').style.display = 'none';
+            }
+        }
+
+        // Load monitor model
+        const gltfLoader = new THREE.GLTFLoader();
+        
+        // Load computer monitor
+        console.log('Starting to load monitor model...');
+        
+        gltfLoader.load(
+            'models/monitorlow-poly/scene.gltf',
+            function(gltf) {
+                console.log('Monitor model loaded successfully');
+                const monitor = gltf.scene;
+                
+                // Enable shadows and optimize
+                monitor.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+                
+                // Reset and apply transformations
+                monitor.position.set(0, 0, 0);
+                monitor.rotation.set(0, 0, 0);
+                monitor.scale.set(1, 1, 1);
+                
+                // Final transformations
+                monitor.scale.set(0.5, 0.5, 0.5);
+                monitor.position.set(0, 0.75, 0);
+                monitor.rotation.y = 0; // No tilt
+                
+                scene.add(monitor);
+                updateLoadingProgress();
+            },
+            function(xhr) {
+                console.log('Loading monitor: ' + (xhr.loaded / xhr.total * 100) + '%');
+            },
+            function(error) {
+                console.error('Error loading monitor model:', error);
+                updateLoadingProgress();
+            }
+        );
+
+        // Load low-poly plant
+        console.log('Starting to load plant model...');
+        
+        gltfLoader.load(
+            'models/low-poly_plant/scene.gltf',
+            function(gltf) {
+                console.log('Plant model loaded successfully');
+                const plant = gltf.scene;
+                
+                // Enable shadows and optimize
+                plant.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+                
+                // Reset and apply transformations
+                plant.position.set(0, 0, 0);
+                plant.rotation.set(0, 0, 0);
+                plant.scale.set(1, 1, 1);
+                
+                // Final transformations
+                plant.scale.set(3.5, 3.5, 3.5);
+                plant.position.set(2.5, -0.5, 0);
+                plant.rotation.y = Math.PI / 4;
+                
+                scene.add(plant);
+                updateLoadingProgress();
+            },
+            function(xhr) {
+                console.log('Loading plant: ' + (xhr.loaded / xhr.total * 100) + '%');
+            },
+            function(error) {
+                console.error('Error loading plant model:', error);
+                updateLoadingProgress();
+            }
+        );
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // Update controls
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

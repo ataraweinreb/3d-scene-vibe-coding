@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Laptop Model Test</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // Ground plane
+        const groundGeometry = new THREE.PlaneGeometry(10, 10);
+        const groundMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.5;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Load laptop model
+        const gltfLoader = new THREE.GLTFLoader();
+        console.log('Starting to load laptop model...');
+        
+        gltfLoader.load(
+            'models/laptop_prop_low_poly/scene.gltf',
+            function(gltf) {
+                console.log('Laptop model loaded successfully');
+                const laptopModel = gltf.scene;
+                
+                // Log the model's initial properties
+                console.log('Initial model properties:', {
+                    position: laptopModel.position,
+                    scale: laptopModel.scale,
+                    rotation: laptopModel.rotation,
+                    children: laptopModel.children.length
+                });
+                
+                // Traverse the model to find the screen and chassis
+                laptopModel.traverse((child) => {
+                    if (child.isMesh) {
+                        // Enable shadows
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        
+                        // Log mesh details
+                        console.log('Found mesh:', {
+                            name: child.name,
+                            position: child.position,
+                            scale: child.scale,
+                            rotation: child.rotation
+                        });
+                    }
+                });
+                
+                // Reset transformations
+                laptopModel.position.set(0, 0, 0);
+                laptopModel.rotation.set(0, 0, 0);
+                laptopModel.scale.set(1, 1, 1);
+                
+                // Apply new transformations
+                laptopModel.scale.set(0.8, 0.8, 0.8);
+                laptopModel.position.set(0, 0, 0);
+                laptopModel.rotation.y = Math.PI / 4;
+                
+                // Add the model to the scene
+                scene.add(laptopModel);
+                
+                // Log final properties
+                console.log('Final model properties:', {
+                    position: laptopModel.position,
+                    scale: laptopModel.scale,
+                    rotation: laptopModel.rotation
+                });
+            },
+            // Progress callback
+            function(xhr) {
+                const percent = (xhr.loaded / xhr.total * 100);
+                console.log('Loading laptop: ' + percent.toFixed(2) + '%');
+            },
+            // Error callback
+            function(error) {
+                console.error('Error loading laptop model:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack
+                });
+            }
+        );
+
+        // Camera position
+        camera.position.set(0, 2, 5);
+        camera.lookAt(0, 0, 0);
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html> 
