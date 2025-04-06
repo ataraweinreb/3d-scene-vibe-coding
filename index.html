@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>3D Model Viewer</title>
     <style>
         * {
@@ -14,10 +14,13 @@
         body {
             overflow: hidden;
             background: #f0f0f0;
+            touch-action: none; /* Prevent touch zooming */
         }
 
         canvas {
             display: block;
+            width: 100%;
+            height: 100%;
         }
 
         .loading {
@@ -59,10 +62,12 @@
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-                text-align: center;
+            text-align: center;
             z-index: 1000;
             text-shadow: none;
             letter-spacing: -0.5px;
+            width: 100%;
+            padding: 0 20px;
         }
 
         .title-text {
@@ -81,8 +86,60 @@
             z-index: 1000;
             text-shadow: none;
             letter-spacing: -0.3px;
-                opacity: 0.8;
+            opacity: 0.8;
+            width: 100%;
+            padding: 0 20px;
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .name-text {
+                font-size: 32px;
+                top: 40px;
+                padding: 0 15px;
             }
+
+            .title-text {
+                font-size: 18px;
+                top: 100px; /* Increased spacing */
+                padding: 0 15px;
+            }
+
+            .loading {
+                font-size: 18px;
+            }
+
+            .loading-progress {
+                width: 150px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .name-text {
+            font-size: 28px;
+                top: 30px;
+                padding: 0 10px;
+            }
+
+            .title-text {
+            font-size: 16px;
+                top: 85px; /* Increased spacing */
+                padding: 0 10px;
+            }
+        }
+
+        /* Handle landscape orientation */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .name-text {
+                font-size: 24px;
+                top: 20px;
+            }
+
+            .title-text {
+                font-size: 14px;
+                top: 60px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -107,19 +164,61 @@
             powerPreference: "high-performance"
         });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // Add orbit controls
+        // Add orbit controls with mobile-friendly settings
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // Add smooth damping
+        controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.screenSpacePanning = true;
-        controls.minDistance = 2;
-        controls.maxDistance = 10;
-        controls.maxPolarAngle = Math.PI / 2; // Prevent going below the ground
+        controls.minDistance = 4; // Increased from 3
+        controls.maxDistance = 5; // Decreased from 6
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.enableTouchZoom = true;
+        controls.enablePan = true;
+        controls.enableRotate = true;
+        controls.touches = {
+            ONE: THREE.TOUCH.ROTATE,
+            TWO: THREE.TOUCH.DOLLY_PAN
+        };
+        controls.zoomSpeed = 0.2; // Much slower zoom speed
+        controls.minZoom = 0.8; // Limit zoom in
+        controls.maxZoom = 1.2; // Limit zoom out
+
+        // Adjust camera position based on screen size
+        function updateCameraPosition() {
+            if (window.innerWidth <= 768) {
+                camera.position.set(0, 2.5, 4); // Closer view for mobile
+            } else {
+                camera.position.set(0, 3, 5); // Original view for desktop
+            }
+            camera.lookAt(0, 0.7, 0);
+        }
+
+        // Initial camera position
+        updateCameraPosition();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            updateCameraPosition();
+        });
+
+        // Handle orientation change
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                updateCameraPosition();
+            }, 100);
+        });
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -334,12 +433,8 @@
             pages.rotation.y += randomRotation;
         });
 
-        // Camera position
-        camera.position.set(0, 3, 5);
-        camera.lookAt(0, 0.7, 0);
-
         // Loading state
-        let totalModels = 2; // Monitor and plant
+        let totalModels = 3; // Monitor, plant, and VR headset
         let loadedModels = 0;
         const loadingBar = document.querySelector('.loading-progress-bar');
 
@@ -399,6 +494,48 @@
             }
         );
 
+        // Load Pico 4 VR headset
+        console.log('Starting to load VR headset model...');
+        
+        gltfLoader.load(
+            'models/pico4_low_poly_vr_headset.glb',
+            function(gltf) {
+                console.log('VR headset model loaded successfully');
+                const headset = gltf.scene;
+                
+                // Enable shadows and optimize
+                headset.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+                
+                // Reset and apply transformations
+                headset.position.set(0, 0, 0);
+                headset.rotation.set(0, 0, 0);
+                headset.scale.set(1, 1, 1);
+                
+                // Final transformations
+                headset.scale.set(0.05, 0.05, 0.05); // Increased scale
+                headset.position.set(-1.5, 0.9, -0.2); // Position where books were
+                headset.rotation.y = -Math.PI / 8; // Facing towards monitor
+                
+                scene.add(headset);
+                updateLoadingProgress();
+            },
+            function(xhr) {
+                console.log('Loading VR headset: ' + (xhr.loaded / xhr.total * 100) + '%');
+            },
+            function(error) {
+                console.error('Error loading VR headset model:', error);
+                updateLoadingProgress();
+            }
+        );
+
         // Load low-poly plant
         console.log('Starting to load plant model...');
         
@@ -424,12 +561,20 @@
                 plant.rotation.set(0, 0, 0);
                 plant.scale.set(1, 1, 1);
                 
-                // Final transformations
+                // Final transformations for floor plant
                 plant.scale.set(3.5, 3.5, 3.5);
                 plant.position.set(2.5, -0.5, 0);
                 plant.rotation.y = Math.PI / 4;
                 
                 scene.add(plant);
+
+                // Create desk plant by cloning
+                const deskPlant = plant.clone();
+                deskPlant.scale.set(2.0, 2.0, 2.0); // Much larger scale
+                deskPlant.position.set(1.5, 0.92, -0.2); // Position on top of books
+                deskPlant.rotation.y = Math.PI / 4;
+                scene.add(deskPlant);
+                
                 updateLoadingProgress();
             },
             function(xhr) {
@@ -440,14 +585,6 @@
                 updateLoadingProgress();
             }
         );
-
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-        });
 
         // Animation loop
         function animate() {
